@@ -7,34 +7,34 @@ import psycopg2
 
 
 def connect():
-    """Connect to the PostgreSQL database.  Returns a database connection."""
-    return psycopg2.connect("dbname=tournament")
+    """Connect to the PostgreSQL database.  Returns a database cursor."""
+    connection = psycopg2.connect("dbname=tournament")
+    # connection = psycopg2.connect("dbname={}".format(database_name))
+    cursor = connection.cursor()
+    return connection, cursor
 
 def deleteMatches():
     """Remove all the match records from the database."""
-    connection = connect()
-    cursor = connection.cursor()
-    delete_cmd = "DELETE FROM matches"
-    cursor.execute(delete_cmd)
+    connection, cursor = connect()
+    query = "DELETE FROM matches;"
+    cursor.execute(query)
     connection.commit()
     connection.close()
 
 
 def deletePlayers():
     """Remove all the player records from the database."""
-    connection = connect()
-    cursor = connection.cursor()
-    delete_cmd = "DELETE FROM players"
-    cursor.execute(delete_cmd)
+    connection, cursor = connect()
+    query = "DELETE FROM players;"
+    cursor.execute(query)
     connection.commit()
     connection.close()
     
 def countPlayers():
     """Returns the number of players currently registered."""
-    connection = connect()
-    cursor = connection.cursor()
-    count_cmd = "SELECT count(id) AS total FROM players"
-    cursor.execute(count_cmd)
+    connection, cursor = connect()
+    query = "SELECT count(id) AS total FROM players;"
+    cursor.execute(query)
     num_of_players = cursor.fetchone()
     connection.close()
     if num_of_players:
@@ -51,9 +51,10 @@ def registerPlayer(name):
     Args:
       name: the player's full name (need not be unique).
     """
-    connection = connect()
-    cursor = connection.cursor()
-    cursor.execute("INSERT INTO players (name) VALUES(%s)" , (name,))
+    connection, cursor = connect()
+    query = "INSERT INTO players (name) VALUES (%s);"
+    param = (name,)
+    cursor.execute(query, param)
     connection.commit()
     connection.close()
 
@@ -71,16 +72,15 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-    connection = connect()
-    cursor = connection.cursor()
+    connection, cursor = connect()
     query = """
-        SELECT players.id, players.name, v_win_counts.wins, v_match_count.matches
+        SELECT players.id, players.name, v_win_count.wins, v_match_count.matches
         FROM players 
-        LEFT JOIN v_win_counts
-        ON players.id=v_win_counts.id
+        LEFT JOIN v_win_count
+        ON players.id=v_win_count.id
         RIGHT JOIN v_match_count
         ON players.id=v_match_count.id
-        ORDER BY v_win_counts.wins DESC;
+        ORDER BY v_win_count.wins DESC;
     """
     cursor.execute(query)
     result = cursor.fetchall()
@@ -95,12 +95,11 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
-    connection = connect()
-    cursor = connection.cursor()
+    connection, cursor = connect()
 
-    new_match = "INSERT INTO matches (winner, loser) VALUES (%d, %d)" % (winner, loser)
-
-    cursor.execute(new_match)
+    query = "INSERT INTO matches (winner, loser) VALUES (%s, %s);" 
+    params = (winner, loser)
+    cursor.execute(query, params)
     connection.commit()
     connection.close()
 
@@ -122,18 +121,9 @@ def swissPairings():
         name2: the second player's name
     """
     player_list = playerStandings()
-    next_round = []
-    i = 0
-    while i < len(player_list):
-        id1 = player_list[i][0]
-        name1 = player_list[i][1]
-        id2 = player_list[i+1][0]
-        name2 = player_list[i+1][1]
-        i = i + 2
-        next_round.append([id1, name1, id2, name2])
+    player1_id = [tuple[0] for tuple in player_list[::2]]
+    player2_id = [tuple[0] for tuple in player_list[1::2]]
+    player1_name = [tuple[1] for tuple in player_list[::2]]
+    player2_name = [tuple[1] for tuple in player_list[1::2]]
+    next_round = zip(player1_id, player1_name, player2_id, player2_name)
     return next_round
-
-
-
-
-
